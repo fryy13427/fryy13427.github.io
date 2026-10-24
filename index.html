@@ -71,46 +71,294 @@
       <div class="outer">
         <section id="main">
   
-    <article id="post-hello-world" class="h-entry article article-type-post" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
+    <article id="post-zhan-yi-chu-ru-men" class="h-entry article article-type-post" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
   <div class="article-meta">
-    <a href="/2026/10/19/hello-world/" class="article-date">
-  <time class="dt-published" datetime="2026-10-19T01:10:33.927Z" itemprop="datePublished">2026-10-19</time>
+    <a href="/2026/10/24/zhan-yi-chu-ru-men/" class="article-date">
+  <time class="dt-published" datetime="2026-10-24T10:34:45.778Z" itemprop="datePublished">2026-10-24</time>
 </a>
     
   </div>
   <div class="article-inner">
     
     
-      <header class="article-header">
-        
-  
-    <h1 itemprop="name">
-      <a class="p-name article-title" href="/2026/10/19/hello-world/">Hello World</a>
-    </h1>
-  
-
-      </header>
-    
     <div class="e-content article-entry" itemprop="articleBody">
       
-        <p>Welcome to <a target="_blank" rel="noopener" href="https://hexo.io/">Hexo</a>! This is your very first post. Check <a target="_blank" rel="noopener" href="https://hexo.io/docs/">documentation</a> for more info. If you get any problems when using Hexo, you can find the answer in <a target="_blank" rel="noopener" href="https://hexo.io/docs/troubleshooting.html">troubleshooting</a> or you can ask me on <a target="_blank" rel="noopener" href="https://github.com/hexojs/hexo/issues">GitHub</a>.</p>
-<h2 id="Quick-Start"><a href="#Quick-Start" class="headerlink" title="Quick Start"></a>Quick Start</h2><h3 id="Create-a-new-post"><a href="#Create-a-new-post" class="headerlink" title="Create a new post"></a>Create a new post</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo new <span class="string">&quot;My New Post&quot;</span></span><br></pre></td></tr></table></figure>
+        <hr>
+<p>title: 从两个 C 语言题 读懂栈：越界覆盖返回地址 与 off-by-one 死循环</p>
+<p>date: 2026-10-24</p>
+<p>tags:</p>
+<ul>
+<li><p>二进制安全</p>
+</li>
+<li><p>栈溢出</p>
+</li>
+<li><p>CTF</p>
+</li>
+<li><p>C 语言</p>
+</li>
+</ul>
+<hr>
+<p>本文是入门二进制安全的学习笔记。两道均是最小化的 C 语言练习题：一道 “故意越界、精准覆盖返回地址”，一道 “off-by-one、砸中隔壁变量”。 全程使用 Visual Studio 2026（Debug &#x2F;x86）自带的调试器 与 x32dbg，把每一块栈内存、每一条汇编都亲眼看过一遍。</p>
+<h2 id="0-TL-DR"><a href="#0-TL-DR" class="headerlink" title="0. TL;DR"></a>0. TL;DR</h2><table>
+<thead>
+<tr>
+<th></th>
+<th>题一：覆盖返回地址</th>
+<th>题二：off-by-one</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>越界幅度</td>
+<td>精确算偏移，写穿到返回地址</td>
+<td>只越界 1 个 int</td>
+</tr>
+<tr>
+<td>落点</td>
+<td>a [N] &#x3D; main 的返回地址槽</td>
+<td>a [10] &#x3D; 循环变量 i 本身</td>
+</tr>
+<tr>
+<td>后果</td>
+<td>ret 弹出 pwn 地址 → 劫持控制流，无限打印 PWNED</td>
+<td>i 被清零 → 永远出不了循环 → 无限打印 hello world</td>
+</tr>
+<tr>
+<td>关键工具</td>
+<td>VS 调试器（监视 @ebp、内存窗口）</td>
+<td>x32dbg（bp feng + 内存窗口解码）</td>
+</tr>
+<tr>
+<td>总结</td>
+<td>栈上放着 “程序接下来去哪”，写得够远就能覆盖它</td>
+<td>越界写的危害取决于 “写到了谁”，需要实测</td>
+</tr>
+</tbody></table>
+<h2 id="1-关于本题用的堆栈基础知识：函数的栈到底长什么样"><a href="#1-关于本题用的堆栈基础知识：函数的栈到底长什么样" class="headerlink" title="1. 关于本题用的堆栈基础知识：函数的栈到底长什么样"></a>1. 关于本题用的堆栈基础知识：函数的栈到底长什么样</h2><p>x86 下每次函数调用都会在栈上建立 “栈帧”。以我们后面反复用到的 feng &#x2F;main 为例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">高地址</span><br><span class="line">┌──────────────────────────────┐</span><br><span class="line">│  调用者的参数（如果有）      │  ← ebp + 8</span><br><span class="line">├──────────────────────────────┤</span><br><span class="line">│  返回地址（call 压入）       │  ← ret 指令弹出的就是它</span><br><span class="line">├──────────────────────────────┤  ← ebp + 4</span><br><span class="line">│  保存的调用者 ebp            │</span><br><span class="line">├──────────────────────────────┤  ← ebp（锚点，不随 push/pop 移动）</span><br><span class="line">│  局部变量 1（如 i）          │</span><br><span class="line">│  局部变量 2（如 a[0]）…      │</span><br><span class="line">│  一直往下排                  │</span><br><span class="line">└──────────────────────────────┘  ← esp（栈顶，往下填写）</span><br><span class="line">低地址</span><br></pre></td></tr></table></figure>
 
-<p>More info: <a target="_blank" rel="noopener" href="https://hexo.io/docs/writing.html">Writing</a></p>
-<h3 id="Run-server"><a href="#Run-server" class="headerlink" title="Run server"></a>Run server</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo server</span><br></pre></td></tr></table></figure>
+<p>关于我对局部变量和参数的理解：</p>
+<ul>
+<li><p>局部变量在 ebp 下方，返回地址在 ebp 上方 —— 数组越界是往上写的，写得够多，迟早覆盖上层。</p>
+</li>
+<li><p>call 会把 “下一条指令地址” 压栈；函数结尾的 ret 把它弹出来当作下一条要执行的地址。这个 4 字节就是 “返回地址”（注意区分 “返回值”：返回值走 EAX 寄存器，不在栈上）。</p>
+</li>
+<li><p>返回地址相对于 i &#x2F;a 的偏移 &#x3D; 编译器布局决定的常量。本题使用调试器测试。</p>
+</li>
+</ul>
+<p>读汇编还会用到的小知识：</p>
+<ul>
+<li><p>C7 45 XX imm32 → mov dword ptr [ebp+XX (带符号 8 位)], imm32</p>
+</li>
+<li><p>C7 45 FC … → FC 按补码读 &#x3D; -4 → 写到 [ebp-4]</p>
+</li>
+<li><p>数值按小端序：0A 00 00 00 &#x3D; 0x0000000A &#x3D; 10</p>
+</li>
+</ul>
+<h2 id="2-题一：越界覆盖返回地址"><a href="#2-题一：越界覆盖返回地址" class="headerlink" title="2. 题一：越界覆盖返回地址"></a>2. 题一：越界覆盖返回地址</h2><h3 id="2-1-题目代码"><a href="#2-1-题目代码" class="headerlink" title="2.1 题目代码"></a>2.1 题目代码</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">#include &lt;stdio.h&gt;</span><br><span class="line"></span><br><span class="line">int pwn(void)</span><br><span class="line">&#123;</span><br><span class="line">    while (1)</span><br><span class="line">    &#123;</span><br><span class="line">        printf(&quot;PWNED!!!\n&quot;);</span><br><span class="line">    &#125;</span><br><span class="line">    return 1;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">int main(void)</span><br><span class="line">&#123;</span><br><span class="line">    int a[1];            // 只有 1 个 int，却往后面写</span><br><span class="line">    int i;</span><br><span class="line">    i = 0;</span><br><span class="line">    a[i] = 1;</span><br><span class="line">    i = i + 1;</span><br><span class="line">    a[i] = 1;</span><br><span class="line">    i = i + 1;           // i = 2 → a[2] 已经越界</span><br><span class="line">    a[i] = (int)&amp;pwn;    // 把 pwn 的地址写进 a[2]</span><br><span class="line">    printf(&quot;hello world!\n&quot;);</span><br><span class="line">    return 0;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
-<p>More info: <a target="_blank" rel="noopener" href="https://hexo.io/docs/server.html">Server</a></p>
-<h3 id="Generate-static-files"><a href="#Generate-static-files" class="headerlink" title="Generate static files"></a>Generate static files</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo generate</span><br></pre></td></tr></table></figure>
 
-<p>More info: <a target="_blank" rel="noopener" href="https://hexo.io/docs/generating.html">Generating</a></p>
-<h3 id="Deploy-to-remote-sites"><a href="#Deploy-to-remote-sites" class="headerlink" title="Deploy to remote sites"></a>Deploy to remote sites</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo deploy</span><br></pre></td></tr></table></figure>
 
-<p>More info: <a target="_blank" rel="noopener" href="https://hexo.io/docs/one-command-deployment.html">Deployment</a></p>
+<p><img src="/images/stack-1.png" alt="题一程序调试界面"></p>
+<p>目标：让 main 返回时不回到 CRT，而是跳进 pwn，无限打印 PWNED。</p>
+<h3 id="2-2-调试记录"><a href="#2-2-调试记录" class="headerlink" title="2.2 调试记录"></a>2.2 调试记录</h3><p><strong>1：先跑 x64，失败。</strong></p>
+<p>在 x64 上写 a [2] &#x3D; (int)&amp;pwn：</p>
+<ul>
+<li><p>指针是 8 字节，(int) 只写低 4 字节，写不满；</p>
+</li>
+<li><p>MSVC x64 不用 rbp 做帧指针，监视 @rbp 得到的只是寄存器残留值（用 (@rbp+4-..) 算出的偏移和事实矛盾 ——a [1] 被写成 1 程序却没崩，说明那不是返回地址）；</p>
+</li>
+<li><p>crash 后在内存窗口里肉眼比对，确认写入落在了垃圾填充区（一片 CC CC CC CC）</p>
+</li>
+</ul>
+<p>结论：x86（Win32）。32 位下：指针 &#x3D; int &#x3D; 4 字节，一把写满；push ebp; mov ebp,esp 序言保证 ebp 就是帧指针。</p>
+<p><img src="/images/stack-2.png" alt="x64 失败时的监视窗口与内存窗口"></p>
+<p><strong>2：Run-Time Check Failure #2 - Stack around the variable ‘a’ was corrupted.</strong></p>
+<p>Debug 版的 &#x2F;RTC1 给栈围了护栏，函数收尾时发现 a 周围被动过就报错拦截 —— 这恰恰证明越界写生效了。解决：项目属性 → C&#x2F;C++ → 代码生成 → 基本运行时检查 → 改为 “默认值”，重新生成。</p>
+<p><strong>3：关掉 &#x2F;RTC1 后布局变了。</strong></p>
+<p>开 RTC1 时 N&#x3D;3（a [2] 是保存的 ebp，a [3] 才是返回地址），关掉后 N&#x3D;2—— 编译选项一动，布局就动，所以偏移必须每次实测。</p>
+<p>如图：这是没有关 RTC1 的情况可以看到算出来应该为 3</p>
+<p><img src="/images/stack-3.png" alt="RTC1 开启时的调试截图"></p>
+<p>如图：这是将运行时检查变为默认值的情况可以看到偏移值发生了变话。</p>
+<p><img src="/images/stack-4.png" alt="RTC1 关闭后的调试截图"></p>
+<h3 id="2-3-动态调试：三步定位返回地址"><a href="#2-3-动态调试：三步定位返回地址" class="headerlink" title="2.3 动态调试：三步定位返回地址"></a>2.3 动态调试：三步定位返回地址</h3><p>Debug x86 下，在 a [i] &#x3D; (int)&amp;pwn; 处下断点，VS 监视窗口加：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">&amp;a</span><br><span class="line">@ebp</span><br><span class="line">(@ebp + 4 - (unsigned long long)&amp;a) / 4     ← 直接算出越界步长 N</span><br></pre></td></tr></table></figure>
+
+<p>本次实测（Debug、关 RTC1）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">&amp;a       = 0x001AF8EC</span><br><span class="line">@ebp     = 0x001AF8F0</span><br><span class="line">@ebp + 4 = 0x001AF8F4   ← main 的返回地址存放处</span><br><span class="line">N        = 2            → 返回地址就在 a[2]</span><br></pre></td></tr></table></figure>
+
+<p>内存窗口输入 &amp;a，看到现场（写入前）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">0x001AF8EC  01 00 00 00      a[0] = 1</span><br><span class="line">0x001AF8F0  ...              （保存的 ebp）</span><br><span class="line">0x001AF8F4  43 21 ae 00      ← 返回地址 0x00AE2143（指向 exe 内 CRT 代码）</span><br></pre></td></tr></table></figure>
+
+<p>单步 F10 执行 a [2] &#x3D; (int)&amp;pwn 之后：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">0x001AF8F4  c8 21 4d 00      ← 变成 pwn 的地址 0x004D21C8</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-4-放行，观察劫持"><a href="#2-4-放行，观察劫持" class="headerlink" title="2.4 放行，观察劫持"></a>2.4 放行，观察劫持</h3><p>F5 放行 → 控制台输出：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">hello world!</span><br><span class="line">PWNED!!!</span><br><span class="line">PWNED!!!</span><br><span class="line">PWNED!!!</span><br><span class="line">...（无限循环）</span><br></pre></td></tr></table></figure>
+
+<p>执行流复盘：main 收尾 mov esp,ebp &#x2F;pop ebp &#x2F;ret → ret 从 0x001AF8F4 弹出 4 字节 → 弹出的是我们写入的 &amp;pwn → EIP &#x3D; pwn → 进入 while (1)。</p>
+<p><img src="/images/stack-5.png" alt="F5 放行后控制台无限打印 PWNED"></p>
+<p>注：a [1]&#x3D;1 事实上把 “保存的 ebp” 也覆盖了（a [1] 恰好在 ebp 槽位），但 pwn 永不返回，旧 ebp 再也没被用上，所以程序照样 “成功”。</p>
+<h3 id="2-5-偏移公式（可迁移）"><a href="#2-5-偏移公式（可迁移）" class="headerlink" title="2.5 偏移公式（可迁移）"></a>2.5 偏移公式（可迁移）</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">N = ( @ebp + 4 − &amp;a ) / 4      // 返回地址相对 a[0] 的 int 步长</span><br></pre></td></tr></table></figure>
+
+<p>开 &#x2F;RTC1 时 N&#x3D;3，关掉后 N&#x3D;2 → 公式拿去算，答案可能是任何数，动态实测才作数。</p>
+<h2 id="3-题二：off-by-one，砸中隔壁的-i"><a href="#3-题二：off-by-one，砸中隔壁的-i" class="headerlink" title="3. 题二：off-by-one，砸中隔壁的 i"></a>3. 题二：off-by-one，砸中隔壁的 i</h2><h3 id="3-1-题目代码（只是哔哩哔哩海哥公开课的题，也是我第一次接触这个）"><a href="#3-1-题目代码（只是哔哩哔哩海哥公开课的题，也是我第一次接触这个）" class="headerlink" title="3.1 题目代码（只是哔哩哔哩海哥公开课的题，也是我第一次接触这个）"></a>3.1 题目代码（只是哔哩哔哩海哥公开课的题，也是我第一次接触这个）</h3><p>代码在 Visual Studio 2026 里面编译运行为程序。</p>
+<p><img src="/images/stack-6.png" alt="题二程序调试界面"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">void feng()</span><br><span class="line">&#123;</span><br><span class="line">    int i = 0;</span><br><span class="line">    int a[] = &#123; 1,2,3,4,5,6,7,8,9,10 &#125;;   // 10 个元素，合法下标 0~9</span><br><span class="line">    for (i = 0; i &lt;= 10; i++)             // ← &lt;= 多写一次，共 11 次！</span><br><span class="line">    &#123;</span><br><span class="line">        a[i] = 0;</span><br><span class="line">        printf(&quot;hello world!\n&quot;);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">int main(int argc, char* argv[])</span><br><span class="line">&#123;</span><br><span class="line">    feng();</span><br><span class="line">    getchar();</span><br><span class="line">    return 0;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>同理关掉 &#x2F;RTC1 后重新生成，保证汇编干净。产物：Debug\ConsoleApplication2.exe（连同 pdb）。</p>
+<h3 id="3-2-x32dbg-实操：断在循环前面"><a href="#3-2-x32dbg-实操：断在循环前面" class="headerlink" title="3.2 x32dbg 实操：断在循环前面"></a>3.2 x32dbg 实操：断在循环前面</h3><p>x32dbg 打开 exe，停下来的第一站是 ntdll 的系统断点 —— 注意那不是程序入口，exe 真正的入口是几千行 CRT 启动代码（mainCRTStartup → __scrt_common_main_seh → main → feng）。</p>
+<p>底部命令栏输入 bp feng 回车，F9 放行 → 停在 feng 入口（标题栏模块变为 consoleapplication2.exe）。</p>
+<p>单步规则：进自己的函数用 F7；进了库函数 &#x2F; 调试辅助（@__CheckForDebuggerJustMyCode@4）想退出来用 Ctrl+F9（执行到返回）+ F8。printf 等一切 call 都用 F8 步过。</p>
+<p>走完初始化，光标停在 for 循环开头便可以看清全貌：</p>
+<p><img src="/images/stack-7.png" alt="x32dbg 停在 feng 入口（push ebp）"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line">00941780  push ebp                 ; 保存 main 的 ebp</span><br><span class="line">00941781  mov ebp,esp</span><br><span class="line">00941783  sub esp,6Ch              ; 给局部变量腾 0x6C 字节</span><br><span class="line">00941786  push ebx / push esi / push edi   ; callee-saved 寄存器</span><br><span class="line">00941789  mov ecx,&lt;文件token&gt;</span><br><span class="line">0094178E  call @__CheckForDebuggerJustMyCode@4    ; VS 调试辅助，与逻辑无关</span><br><span class="line">00941794  mov dword ptr [ebp-4],0         ; cpp:7   int i = 0</span><br><span class="line">0094179B  mov dword ptr [ebp-2Ch],1       ; cpp:8   a[0]=1</span><br><span class="line">009417A2  mov dword ptr [ebp-28h],2       ;         a[1]=2</span><br><span class="line">...                                     ; 共 10 条</span><br><span class="line">009417DA  mov dword ptr [ebp-8],0Ah       ;         a[9]=10</span><br><span class="line">009417E1  mov dword ptr [ebp-4],0         ; cpp:9   for (i=0;...)</span><br><span class="line">009417E8  jmp 009417F3                    ; 先跳去判断</span><br><span class="line">009417EA  mov eax,[ebp-4]                 ; （回跳点）i++</span><br><span class="line">009417ED  add eax,1</span><br><span class="line">009417F0  mov [ebp-4],eax</span><br><span class="line">009417F3  cmp dword ptr [ebp-4],0Ah       ; i &lt;= 10 ?</span><br><span class="line">009417F7  jg  00941813                    ; &gt;10 跳出</span><br><span class="line">009417F9  mov eax,[ebp-4]                 ; cpp:11  a[i]=0</span><br><span class="line">009417FC  mov dword ptr [eax*4+ebp-2Ch],0 ;          ← 写入地址 = 基址+4i</span><br><span class="line">00941802  push 0094B730                   ; cpp:12  &quot;hello world!\n&quot;</span><br><span class="line">00941807  call printf</span><br><span class="line">0094180D  add esp,4                       ; cdecl：调用者清栈</span><br><span class="line">00941811  jmp 009417EA                    ; 回 i++</span><br><span class="line">00941813  pop edi / pop esi / pop ebx     ; cpp:16  尾声</span><br><span class="line">00941816  mov esp,ebp</span><br><span class="line">00941818  pop ebp                         ; 恢复 [ebp] 处的调用者 ebp</span><br><span class="line">00941819  ret                             ; 弹出 [ebp+4] → 回 main</span><br></pre></td></tr></table></figure>
+
+<p>这里需要汇编读数组。</p>
+<h3 id="3-3-从汇编解出布局（本题的全部命门）"><a href="#3-3-从汇编解出布局（本题的全部命门）" class="headerlink" title="3.3 从汇编解出布局（本题的全部命门）"></a>3.3 从汇编解出布局（本题的全部命门）</h3><p>把那条数组初始化 mov 的偏移逐个解码（C7 45 XX 的 XX 是带符号 8 位）：</p>
+<table>
+<thead>
+<tr>
+<th>C 变量</th>
+<th>偏移</th>
+<th>格子</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>i</td>
+<td>ebp-4</td>
+<td>0x00CFFB28</td>
+</tr>
+<tr>
+<td>a[0]</td>
+<td>ebp-2Ch</td>
+<td>0x00CFFB00</td>
+</tr>
+<tr>
+<td>a[1]</td>
+<td>ebp-28h</td>
+<td>…</td>
+</tr>
+<tr>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+</tr>
+<tr>
+<td>a[9]</td>
+<td>ebp-8</td>
+<td>0x00CFFB24</td>
+</tr>
+</tbody></table>
+<p>数组的合法地界到 ebp-8 结束。第 11 次循环写入 a [10]：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">&amp;a[10] = (ebp-2Ch) + 10×4 = ebp-4   ←  正好是 i 的格子！</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-4-现场验证"><a href="#3-4-现场验证" class="headerlink" title="3.4 现场验证"></a>3.4 现场验证</h3><p>内存窗口地址栏输入 ebp-2Ch → 看到 01 02 03 … 0A 十个数连排，尾部还有一格 00 00 00 00（那是 i）。</p>
+<p>在 cmp [ebp-4],0Ah 下断点，F9 反复放行 —— 每停一次 i 就加 1（1、2、3…）。</p>
+<p>i&#x3D;10 那次停下，F8 步到 a [i]&#x3D;0：这一步把 0x00CFFB28（i 的格子，当前值 0x0000000A）写成 00 00 00 00——i 被自己 “杀” 了。</p>
+<p>之后：i++ → 1 → 1&lt;&#x3D;10 成立 → a [1]&#x3D;0 → … → i 到 10 又被清成 0 → 永远出不了循环，控制台无限打印 hello world。</p>
+<p>结果与 “劫持” 式的题一截然不同：不崩溃、不控制流误导，而是程序自己把计数器清零，像是很平稳地 “永远在干活”—— 实际上是越界一次把它锁在了循环里。</p>
+<h2 id="4-两题对照（一个思想，两种结局）"><a href="#4-两题对照（一个思想，两种结局）" class="headerlink" title="4. 两题对照（一个思想，两种结局）"></a>4. 两题对照（一个思想，两种结局）</h2><table>
+<thead>
+<tr>
+<th></th>
+<th>题一</th>
+<th>题二</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>溢出来源</td>
+<td>故意写 a [2]</td>
+<td>i &lt;&#x3D; 10 的 off-by-one</td>
+</tr>
+<tr>
+<td>从 &amp;a 往上数的落点</td>
+<td>第 N 格 &#x3D; 返回地址</td>
+<td>第 10 格 &#x3D; 邻居 i</td>
+</tr>
+<tr>
+<td>机器层面发生了什么</td>
+<td>ret 弹出的 4 字节被替换</td>
+<td>循环变量的 4 字节被清零</td>
+</tr>
+<tr>
+<td>宏观现象</td>
+<td>劫持控制流（跳进 pwn）</td>
+<td>逻辑层失控（死循环）</td>
+</tr>
+<tr>
+<td>共同点</td>
+<td>都是 “栈是一块可读写的普通内存” 这一事实的直接后果</td>
+<td></td>
+</tr>
+</tbody></table>
+<p>贯穿两道题的推导链完全一样：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">找到数组基址 → 基址 + 4×(越写下标) → 越界写的落点 → 看格子里的 occupants 是谁</span><br></pre></td></tr></table></figure>
+
+
+
+<ul>
+<li><p>落点是 i → 死循环（题二）</p>
+</li>
+<li><p>落点是保存的 ebp → 函数返回后 main 用坏 ebp（题一实验中的中途现象）</p>
+</li>
+<li><p>落点是 [ebp+4] → ret 劫持（题一的 Hit）</p>
+</li>
+</ul>
+<p>危害不是 “越界” 本身决定的，是被写到的那个字节是干嘛的决定的。</p>
+<h2 id="5-站在防御者视角回看"><a href="#5-站在防御者视角回看" class="headerlink" title="5. 站在防御者视角回看"></a>5. 站在防御者视角回看</h2><table>
+<thead>
+<tr>
+<th>攻击手段</th>
+<th>对应防御</th>
+<th>本实验中的对应物</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>越界写（下标无检查）</td>
+<td>安全编码、越界检查</td>
+<td>&#x2F;RTC1（被我们手动关掉才能演示）</td>
+</tr>
+<tr>
+<td>改写返回地址</td>
+<td>&#x2F;GS 栈 Cookie</td>
+<td>Debug 版未启用，Release 默认会在帧里放 Cookie、ret 前校验</td>
+</tr>
+<tr>
+<td>跳到任意代码地址</td>
+<td>DEP&#x2F;NX（栈不可执行）</td>
+<td>现代 Windows 链接器默认开启</td>
+</tr>
+<tr>
+<td>利用已知布局</td>
+<td>ASLR（地址随机化）</td>
+<td>每次调试 &amp;a 都在变，就是它的效果</td>
+</tr>
+</tbody></table>
+<p>实践上，真正写 “会溢出” 的 C 代码时应养成习惯：i &lt; 10 写成 i &lt;&#x3D; 10 这类错误靠 review 和静态检查抓；涉及指针 &#x2F; 数组，别相信下标，相信调试器。</p>
+<h2 id="6-我做题是遇到的问题（按时间线，供后来者对照）"><a href="#6-我做题是遇到的问题（按时间线，供后来者对照）" class="headerlink" title="6. 我做题是遇到的问题（按时间线，供后来者对照）"></a>6. 我做题是遇到的问题（按时间线，供后来者对照）</h2><ol>
+<li><p>把监视表达式输进了 “搜索框”——VS 监视窗口顶部那个搜索框只能搜现有行，添加新监视要点表格下方的 “添加要监视的项” 灰字行。</p>
+</li>
+<li><p>写成 rbp+4 而不是 @ebp+4—— 寄存器前要加 @，且 x86 下名字是 ebp；没加 @ 时它会被解释成别的符号，结果完全是错值（&amp;rbp 更是直接报错，取地址不能用于寄存器）。</p>
+</li>
+<li><p><strong>x64 时拿 @rbp 当帧指针</strong>——x64 MSVC 根本不用 rbp 做帧指针，推出来的偏移与事实矛盾（a [1] 区块被写成 1 程序却没崩），这才醒悟方向错了。</p>
+</li>
+<li><p>平台的坑：x64 → x86 切过去之后，老的地址全部失效（ASLR 每次启动都换新地址），内存窗口还贴着旧地址就会显示成一片？？—— 记得从监视里重新复制 &amp;a。</p>
+</li>
+<li><p>改了代码忘了停止调试 ——VS 里 PID 没变说明断的还是旧 build，得 Shift+F5 → Ctrl+Shift+B → F5。</p>
+</li>
+<li><p>F7 误入 JMC helper—— 单步进到 @__CheckForDebuggerJustMyCode@4 里懵了；Ctrl+F9 跳出来就没事，并且记住：“自己的函数才用 F7，其它一律 F8”。</p>
+</li>
+<li><p>x32dbg 找不到 “程序入口”—— 打开程序停在的是 ntdll 系统断点，exe 的入口又是 CRT 启动代码；对这道题根本不用找入口，直接 bp feng 一击到位。</p>
+</li>
+</ol>
+<h2 id="7-后记"><a href="#7-后记" class="headerlink" title="7. 后记"></a>7. 后记</h2><p>“栈” 在课本里是一块受让工厂管理的私有区域，在调试器里它只是一片可读写、按约定排布的内存。</p>
+<p>这两道题的本质都是利用 “约定” 与 “检查” 之间的空隙：编译器相信你不会越界（所以按固定布局排布），C 运行时相信你写的下标合法（所以不做检查）。</p>
+<p>想继续进阶，可以把本题一扩展：关掉 &#x2F;GS 再在 Release 下试试；（或者反过来）研究 &#x2F;GS Cookie 是怎么放在局部变量和返回地址之间拦截这类攻击的。</p>
 
       
     </div>
     <footer class="article-footer">
-      <a data-url="https://fryy13427.github.io/2026/10/19/hello-world/" data-id="cmves0kqq00008gu43lwbcdg4" data-title="Hello World" class="article-share-link"><span class="fa fa-share">分享</span></a>
+      <a data-url="https://fryy13427.github.io/2026/10/24/zhan-yi-chu-ru-men/" data-id="cmvma2exo0000m0u4d6exgw7i" data-title="" class="article-share-link"><span class="fa fa-share">分享</span></a>
       
       
       
@@ -153,7 +401,7 @@
       <ul>
         
           <li>
-            <a href="/2026/10/19/hello-world/">Hello World</a>
+            <a href="/2026/10/24/zhan-yi-chu-ru-men/">(no title)</a>
           </li>
         
       </ul>
