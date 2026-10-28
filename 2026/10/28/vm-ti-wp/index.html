@@ -1,0 +1,238 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>关于 CTF+ 上面的一道简单 Vm 题 wp | 听风鸣事</title><meta name="author" content="fryy13427"><meta name="copyright" content="fryy13427"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="我们下载好文件后先放在 die 里面查壳，顺便得到本题的基本信息。如图所示：由 die 我们可以清楚知道本题是需要 Linux 系统，语言是 C 等基本信息。也明确我们下一步可以到 wsl 里面去裸跑一遍获得信息。以下为裸跑得到的信息。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="关于 CTF+ 上面的一道简单 Vm 题 wp">
+<meta property="og:url" content="https://fryy13427.github.io/2026/10/28/vm-ti-wp/index.html">
+<meta property="og:site_name" content="听风鸣事">
+<meta property="og:description" content="我们下载好文件后先放在 die 里面查壳，顺便得到本题的基本信息。如图所示：由 die 我们可以清楚知道本题是需要 Linux 系统，语言是 C 等基本信息。也明确我们下一步可以到 wsl 里面去裸跑一遍获得信息。以下为裸跑得到的信息。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://fryy13427.github.io/img/avatar.png">
+<meta property="article:published_time" content="2026-10-27T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-28T08:30:29.588Z">
+<meta property="article:author" content="fryy13427">
+<meta property="article:tag" content="逆向">
+<meta property="article:tag" content="VM">
+<meta property="article:tag" content="CTF">
+<meta property="article:tag" content="msctf2026">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://fryy13427.github.io/img/avatar.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "关于 CTF+ 上面的一道简单 Vm 题 wp",
+  "url": "https://fryy13427.github.io/2026/10/28/vm-ti-wp/",
+  "image": "https://fryy13427.github.io/img/avatar.png",
+  "datePublished": "2026-10-27T16:00:00.000Z",
+  "dateModified": "2026-10-28T08:30:29.588Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "fryy13427",
+      "url": "https://fryy13427.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.ico"><link rel="canonical" href="https://fryy13427.github.io/2026/10/28/vm-ti-wp/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '关于 CTF+ 上面的一道简单 Vm 题 wp',
+  isHighlightShrink: false,
+  isToc: false,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">2</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">7</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">听风鸣事</span></a><a class="nav-page-title" href="/"><span class="site-name">关于 CTF+ 上面的一道简单 Vm 题 wp</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">关于 CTF+ 上面的一道简单 Vm 题 wp</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-10-27T16:00:00.000Z" title="发表于 2026-10-28 00:00:00">2026-10-28</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-10-28T08:30:29.588Z" title="更新于 2026-10-28 16:30:29">2026-10-28</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/CTF/">CTF</a><i class="fas fa-angle-right post-meta-separator"></i><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/CTF/%E9%80%86%E5%90%91/">逆向</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">总字数:</span><span class="word-count">887</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>3分钟</span></span><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><p>我们下载好文件后先放在 die 里面查壳，顺便得到本题的基本信息。如图所示：由 die 我们可以清楚知道本题是需要 Linux 系统，语言是 C 等基本信息。也明确我们下一步可以到 wsl 里面去裸跑一遍获得信息。以下为裸跑得到的信息。</p>
+<span id="more"></span>
+
+<p><img src="/images/vm-1.png" alt="CTF+ 平台题目页 ez_Vm"></p>
+<p><img src="/images/vm-2.png" alt="DIE 查壳结果：ELF64、Ubuntu Linux、GCC 13.3.0、C"></p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br></pre></td><td class="code"><pre><span class="line">C:\Users\tingfeng&gt;wsl</span><br><span class="line"></span><br><span class="line">root@LAPTOP-0B5S5SS7:/mnt/c/Users/tingfeng# file /mnt/d/Vm（查看Vm文件）</span><br><span class="line"></span><br><span class="line">/mnt/d/Vm: ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, BuildID[sha1]=a55cbdf98365af177b589ff5f418ed8f95273285, for GNU/Linux 3.2.0, stripped</span><br><span class="line"></span><br><span class="line">root@LAPTOP-0B5S5SS7:/mnt/c/Users/tingfeng# chmod +x /mnt/d/Vm</span><br><span class="line"></span><br><span class="line">（chmod +x 这一步是给运行权限）</span><br><span class="line"></span><br><span class="line">root@LAPTOP-0B5S5SS7:/mnt/c/Users/tingfeng# /mnt/d/Vm（运行）</span><br><span class="line"></span><br><span class="line">Input flag:2（尝试）</span><br><span class="line"></span><br><span class="line">Wrong length.    （从这里我们知道检查flag，会先看长度，我们可以一步一步试，但写python脚本更简单）</span><br><span class="line"></span><br><span class="line">root@LAPTOP-0B5S5SS7:/mnt/c/Users/tingfeng# strings /mnt/d/Vm（查字符串）</span><br><span class="line"></span><br><span class="line">/lib64/ld-linux-x86-64.so.2</span><br><span class="line">puts</span><br><span class="line">__stack_chk_fail</span><br><span class="line">exit</span><br><span class="line">Strlen（长度检查）</span><br><span class="line">getchar</span><br><span class="line">__libc_start_main</span><br><span class="line">__cxa_finalize</span><br><span class="line">Memcmp（比较两块内存）</span><br><span class="line">memset</span><br><span class="line">printf</span><br><span class="line">__isoc99_scanf</span><br><span class="line">libc.so.6</span><br><span class="line">GLIBC_2.7</span><br><span class="line">GLIBC_2.4</span><br><span class="line">GLIBC_2.2.5</span><br><span class="line">GLIBC_2.34</span><br><span class="line">_ITM_deregisterTMCloneTable</span><br><span class="line">__gmon_start__</span><br><span class="line">_ITM_registerTMCloneTable</span><br><span class="line">PTE1</span><br><span class="line">u+UH</span><br><span class="line">4A*4Rf*px?b]&#125;`</span><br><span class="line"></span><br><span class="line">Input flag:</span><br><span class="line">%49s（这里就可以得到flag长度）</span><br><span class="line">Wrong length.</span><br><span class="line">Correct!</span><br><span class="line">Wrong!</span><br><span class="line">9*3$&quot;</span><br><span class="line"></span><br><span class="line">GCC: (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0</span><br><span class="line">.shstrtab</span><br><span class="line">.interp</span><br><span class="line">.note.gnu.property</span><br><span class="line">.note.gnu.build-id</span><br><span class="line">.note.ABI-tag</span><br><span class="line">.gnu.hash</span><br><span class="line">.dynsym</span><br><span class="line">.dynstr</span><br><span class="line">.gnu.version</span><br><span class="line">.gnu.version_r</span><br><span class="line">.rela.dyn</span><br><span class="line">.rela.plt</span><br><span class="line">.init</span><br><span class="line">.plt.got</span><br><span class="line">.plt.sec</span><br><span class="line">.text</span><br><span class="line">.fini</span><br><span class="line">.rodata</span><br><span class="line">.eh_frame_hdr</span><br><span class="line">.eh_frame</span><br><span class="line">.init_array</span><br><span class="line">.fini_array</span><br><span class="line">.dynamic</span><br><span class="line">.data</span><br><span class="line">.bss</span><br><span class="line">.comment</span><br></pre></td></tr></table></figure>
+
+<p>至此我们把已知的信息搜集好后，将文件放在 ida 里面开始逆向。进入 ida 后我们在左侧的 function name 窗口就可以看到 start。</p>
+<p><img src="/images/vm-3.png" alt="IDA 左侧 Functions 窗口"></p>
+<p>看到 main 主函数，我们进去看看就可以看到本题判断的逻辑如图。</p>
+<p><img src="/images/vm-4.png" alt="main 主函数伪代码（IDA Pseudocode-A）"></p>
+<p>（这里截图不全可以自己去看看）在这里就可以印证前面在 wsl 中裸跑的情况。在 C 伪代码中可以看到 <code>memcmp(&amp;v6, &amp;unk_2020, v4)</code>：其中 v4 &#x3D; strlen(s) &#x3D; 49，是比较的字节数；&amp;v6 指向 VM 结构的输出缓冲区，存放我们的输入经 VM 执行后产生的 49 字节结果；&amp;unk_2020 则是固定的 49 字节目标数据。因此接下来转向 &amp;unk_2020 查看比对目标。</p>
+<p><img src="/images/vm-5.png" alt=".rodata 段 unk_2020：49 字节比对密文"></p>
+<p>（这里我们找 49 个）这就是与我们 flag 比较的 flag 密文。但前面 c 伪代码中我知道这些数是经过运算得到的。在 C 伪代码图中我们看到我们输入的数经过：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">sub_1249(v5)              <span class="comment">// 初始化 VM 结构（acc=0、pc=0、out 清零）——不参与加密</span></span><br><span class="line">sub_1423(s, v23)          <span class="comment">// 把 49 个字符翻译成 343 字节 VM 指令序列（每字符 7 字节模板）</span></span><br><span class="line">sub_1295(v23, v5)         <span class="comment">// 虚拟机引擎：逐条执行指令，产出 49 字节结果</span></span><br></pre></td></tr></table></figure>
+
+<p><img src="/images/vm-6.png" alt="sub_1249 伪代码：初始化 VM 结构"></p>
+<p><img src="/images/vm-7.png" alt="sub_1423 伪代码：字符翻译成指令序列"></p>
+<p><img src="/images/vm-8.png" alt="sub_1295 伪代码：VM 引擎（while + switch opcode）"></p>
+<p>进入这三个函数我们知道输入先被“编译”成自定义指令，再由自定义 VM“执行”，执行结果拿去比对——这就是本题叫 ez_Vm 的原因。已知密文和加密方式之后就可以得到正确的 flag。</p>
+<p>到这里就是自己看代码的能力和写脚本解码的能力了。我是交给 ai 跑出来的。</p>
+<p>加密逻辑为：</p>
+<ul>
+<li>7 字节模板表：<code>[1, c, 2, 0x0A, 3, 7i+3, 4]</code>，末尾 <code>0xFF</code> 停机</li>
+<li>opcode 表：<code>1=赋值</code>、<code>2=异或</code>、<code>3=加法</code>、<code>4=输出</code>、<code>0xFF=停机</code></li>
+<li>一行公式：<code>out[i] = ((c ^ 0x0A) + (7i+3)) &amp; 0xFF</code>，逆推 <code>c = ((t[i] - (7i+3)) &amp; 0xFF) ^ 0x0A</code></li>
+</ul>
+<p>得到 flag 为：<code>msctf&#123;VM_Pr0t3ct10n_T3chn0l0gy_Rev3rs3_Ch4ll3ng3&#125;</code></p>
+<p><img src="/images/vm-9.png" alt="WSL 中验证 flag 正确（Correct!）"></p>
+<p>以下是解密的 python 脚本，可以参考一下：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">t = <span class="built_in">bytes</span>.fromhex(</span><br><span class="line">    <span class="string">&quot;6A837A968B97897B909CC18AD597CEEA&quot;</span></span><br><span class="line">    <span class="string">&quot;AEB4E5DDEDCF06060FEC1FFA34412A34&quot;</span></span><br><span class="line">    <span class="string">&quot;52662A70783F625D7D608F9670A2B285CA&quot;</span></span><br><span class="line">)</span><br><span class="line"><span class="keyword">assert</span> <span class="built_in">len</span>(t) == <span class="number">49</span></span><br><span class="line"></span><br><span class="line">flag = []</span><br><span class="line"><span class="keyword">for</span> i <span class="keyword">in</span> <span class="built_in">range</span>(<span class="number">49</span>):</span><br><span class="line">    k = <span class="number">7</span> * i + <span class="number">3</span></span><br><span class="line">    c = ((t[i] - k) &amp; <span class="number">0xFF</span>) ^ <span class="number">0x0A</span></span><br><span class="line">    flag.append(c)</span><br><span class="line"></span><br><span class="line"><span class="built_in">print</span>(<span class="built_in">bytes</span>(flag).decode())</span><br></pre></td></tr></table></figure>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://fryy13427.github.io">fryy13427</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://fryy13427.github.io/2026/10/28/vm-ti-wp/">https://fryy13427.github.io/2026/10/28/vm-ti-wp/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://fryy13427.github.io" target="_blank">听风鸣事</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E9%80%86%E5%90%91/">逆向</a><a class="post-meta__tags" href="/tags/VM/">VM</a><a class="post-meta__tags" href="/tags/CTF/">CTF</a><a class="post-meta__tags" href="/tags/msctf2026/">msctf2026</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/2026/10/24/zhan-yi-chu-ru-men/" title="从两个 C 语言题 读懂栈：越界覆盖返回地址 与 off-by-one 死循环"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">从两个 C 语言题 读懂栈：越界覆盖返回地址 与 off-by-one 死循环</div></div><div class="info-2"><div class="info-item-1">本文是入门二进制安全的学习笔记。两道均是最小化的 C 语言练习题：一道 “故意越界、精准覆盖返回地址”，一道 “off-by-one、砸中隔壁变量”。 全程使用 Visual Studio 2026（Debug &#x2F;x86）自带的调试器 与 x32dbg，把每一块栈内存、每一条汇编都亲眼看过一遍。   0. TL;DR    题一：覆盖返回地址 题二：off-by-one    越界幅度 精确算偏移，写穿到返回地址 只越界 1 个 int   落点 a [N] &#x3D; main 的返回地址槽 a [10] &#x3D; 循环变量 i 本身   后果 ret 弹出 pwn 地址 → 劫持控制流，无限打印 PWNED i 被清零 → 永远出不了循环 → 无限打印 hello world   关键工具 VS 调试器（监视 @ebp、内存窗口） x32dbg（bp feng + 内存窗口解码）   总结 栈上放着 “程序接下来去哪”，写得够远就能覆盖它 越界写的危害取决于 “写到了谁”，需要实测   1. 关于本题用的堆栈基础知识：函数的栈到底长什么样x86 下每次函数调用...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/10/24/zhan-yi-chu-ru-men/" title="从两个 C 语言题 读懂栈：越界覆盖返回地址 与 off-by-one 死循环"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-24</div><div class="info-item-2">从两个 C 语言题 读懂栈：越界覆盖返回地址 与 off-by-one 死循环</div></div><div class="info-2"><div class="info-item-1">本文是入门二进制安全的学习笔记。两道均是最小化的 C 语言练习题：一道 “故意越界、精准覆盖返回地址”，一道 “off-by-one、砸中隔壁变量”。 全程使用 Visual Studio 2026（Debug &#x2F;x86）自带的调试器 与 x32dbg，把每一块栈内存、每一条汇编都亲眼看过一遍。   0. TL;DR    题一：覆盖返回地址 题二：off-by-one    越界幅度 精确算偏移，写穿到返回地址 只越界 1 个 int   落点 a [N] &#x3D; main 的返回地址槽 a [10] &#x3D; 循环变量 i 本身   后果 ret 弹出 pwn 地址 → 劫持控制流，无限打印 PWNED i 被清零 → 永远出不了循环 → 无限打印 hello world   关键工具 VS 调试器（监视 @ebp、内存窗口） x32dbg（bp feng + 内存窗口解码）   总结 栈上放着 “程序接下来去哪”，写得够远就能覆盖它 越界写的危害取决于 “写到了谁”，需要实测   1. 关于本题用的堆栈基础知识：函数的栈到底长什么样x86 下每次函数调用...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">fryy13427</div><div class="author-info-description">欸，云朵！</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">2</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">7</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/fryy13427"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/fryy13427" target="_blank" title="GitHub"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/10/28/vm-ti-wp/" title="关于 CTF+ 上面的一道简单 Vm 题 wp">关于 CTF+ 上面的一道简单 Vm 题 wp</a><time datetime="2026-10-27T16:00:00.000Z" title="发表于 2026-10-28 00:00:00">2026-10-28</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/10/24/zhan-yi-chu-ru-men/" title="从两个 C 语言题 读懂栈：越界覆盖返回地址 与 off-by-one 死循环">从两个 C 语言题 读懂栈：越界覆盖返回地址 与 off-by-one 死循环</a><time datetime="2026-10-23T16:00:00.000Z" title="发表于 2026-10-24 00:00:00">2026-10-24</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By fryy13427</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
