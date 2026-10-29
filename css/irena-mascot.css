@@ -1,0 +1,72 @@
+/* 伊蕾娜桌宠样式 */
+#irena-mascot {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 9999;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.28));
+  transition: transform 0.25s ease;
+}
+#irena-mascot:hover {
+  transform: translateY(-4px) scale(1.04);
+}
+#irena-mascot:active {
+  transform: scale(0.96);
+}
+#irena-img {
+  display: block;
+  width: 150px;
+  height: auto;
+  pointer-events: none;
+}
+#irena-bubble {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 14px);
+  transform: translateX(-50%) translateY(6px) scale(0.92);
+  transform-origin: bottom center;
+  min-width: 150px;
+  max-width: 240px;
+  padding: 10px 14px;
+  background: #fff;
+  color: #3a3a3a;
+  border: 2px solid #f0c8d8;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s ease, transform 0.25s ease, visibility 0.25s;
+}
+#irena-bubble::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  transform: translateX(-50%);
+  border: 8px solid transparent;
+  border-top-color: #f0c8d8;
+  border-bottom: none;
+}
+#irena-bubble.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0) scale(1);
+}
+@media (max-width: 768px) {
+  #irena-mascot {
+    right: 12px;
+    bottom: 12px;
+  }
+  #irena-img {
+    width: 110px;
+  }
+  #irena-bubble {
+    max-width: 190px;
+    font-size: 13px;
+  }
+}
