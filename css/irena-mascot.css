@@ -4,7 +4,8 @@
   left: 24px;
   bottom: 24px;
   z-index: 9999;
-  cursor: pointer;
+  cursor: grab;
+  touch-action: none;
   -webkit-user-select: none;
   user-select: none;
   filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.28));
@@ -16,11 +17,17 @@
 #irena-mascot:active {
   transform: scale(0.96);
 }
+#irena-mascot.dragging {
+  cursor: grabbing;
+  transition: none;
+  transform: none !important;
+}
 #irena-img {
   display: block;
   width: 200px;
   height: auto;
   pointer-events: none;
+  -webkit-user-drag: none;
 }
 #irena-bubble {
   position: absolute;
