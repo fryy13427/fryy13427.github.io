@@ -1,7 +1,7 @@
 /* 伊蕾娜桌宠样式 */
 #irena-mascot {
   position: fixed;
-  right: 24px;
+  left: 24px;
   bottom: 24px;
   z-index: 9999;
   cursor: pointer;
@@ -18,7 +18,7 @@
 }
 #irena-img {
   display: block;
-  width: 150px;
+  width: 200px;
   height: auto;
   pointer-events: none;
 }
@@ -59,11 +59,11 @@
 }
 @media (max-width: 768px) {
   #irena-mascot {
-    right: 12px;
+    left: 12px;
     bottom: 12px;
   }
   #irena-img {
-    width: 110px;
+    width: 150px;
   }
   #irena-bubble {
     max-width: 190px;
